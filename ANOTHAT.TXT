@@ -1,99 +1,80 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Image to WPlace Pixel Map</title>
-<style>
-  body { font-family: sans-serif; text-align: center; margin-top: 20px; }
-  #canvas { border:1px solid #000; display:block; margin:auto; }
-  #output { max-width: 90%; margin:20px auto; text-align:left; font-family: monospace; overflow-x:auto; }
-</style>
-</head>
-<body>
-<h2>Image to WPlace Pixel Map</h2>
-<input type="file" id="imgInput" accept="image/*"><br><br>
-Start X: <input type="number" id="startX" value="0">
-Start Y: <input type="number" id="startY" value="0"><br><br>
-<button id="drawBtn">Draw Image</button>
+(function () {
+  // UI setup
+  const ui = document.createElement('div');
+  ui.style = `
+    position:fixed; top:10px; left:10px; background:#fff; padding:10px;
+    border:1px solid #ccc; z-index:9999; font-family:sans-serif;
+  `;
+  ui.innerHTML = `
+    <label>Image URL: <input type="text" id="imgUrl" style="width:200px;"></label><br>
+    <label>Start X: <input type="number" id="startX" value="0" style="width:60px;"></label>
+    <label>Start Y: <input type="number" id="startY" value="0" style="width:60px;"></label><br>
+    <button id="startBtn">Start</button>
+  `;
+  document.body.appendChild(ui);
 
-<canvas id="canvas"></canvas>
-<div id="output"></div>
-
-<script>
-// Official WPlace free color palette
-const wplaceColors = [
-    "#000000", "#3c3c3c", "#787878", "#d2d2d2", "#ffffff",
-    "#600018", "#ed1c24", "#ff7f27", "#f6aa09", "#f9dd3b", "#fffabc",
-    "#0eb968", "#13e67b", "#87ff5e", "#0c816e", "#10aea6", "#13e1be",
-    "#28509e", "#4093e4", "#60f7f2", "#6b50f6", "#99b1fb", "#780c99",
-    "#aa38b9", "#e09ff9", "#cb007a", "#ec1f80", "#f38da9", "#684634",
-    "#95682a", "#f8b277"
-];
-
-// Helper: map any RGB to closest WPlace color
-function rgbToWPlace(r, g, b) {
-    let closest = wplaceColors[0];
-    let minDist = Infinity;
-    for (const hex of wplaceColors) {
-        const hr = parseInt(hex.substr(1, 2), 16);
-        const hg = parseInt(hex.substr(3, 2), 16);
-        const hb = parseInt(hex.substr(5, 2), 16);
-        const dist = (r - hr) ** 2 + (g - hg) ** 2 + (b - hb) ** 2;
-        if (dist < minDist) {
-            minDist = dist;
-            closest = hex;
-        }
-    }
-    return closest;
-}
-
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-let img = new Image();
-
-document.getElementById('imgInput').addEventListener('change', function (e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function (event) {
-        img.src = event.target.result;
-    }
-    reader.readAsDataURL(file);
-});
-
-img.onload = function () {
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-}
-
-document.getElementById('drawBtn').addEventListener('click', function () {
+  document.getElementById('startBtn').onclick = () => {
+    const url = document.getElementById('imgUrl').value;
     const startX = parseInt(document.getElementById('startX').value);
     const startY = parseInt(document.getElementById('startY').value);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
 
-    const imageData = ctx.getImageData(0, 0, img.width, img.height);
-    const data = imageData.data;
-    const outputDiv = document.getElementById('output');
-    outputDiv.innerHTML = "<b>Pixel coordinates and WPlace colors:</b><br>";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
 
-    for (let y = 0; y < img.height; y++) {
+      const data = ctx.getImageData(0, 0, img.width, img.height).data;
+      const pixels = [];
+
+      for (let y = 0; y < img.height; y++) {
         for (let x = 0; x < img.width; x++) {
-            const idx = (y * img.width + x) * 4;
-            const r = data[idx];
-            const g = data[idx + 1];
-            const b = data[idx + 2];
-            const a = data[idx + 3];
-            if (a > 0) {
-                const color = rgbToWPlace(r, g, b);
-                outputDiv.innerHTML += `x:${startX + x}, y:${startY + y}, color:${color}<br>`;
-            }
+          const i = (y * img.width + x) * 4;
+          const alpha = data[i + 3];
+          if (alpha > 0) {
+            pixels.push({ x: startX + x, y: startY + y });
+          }
         }
-    }
-    alert("Pixel map ready, meow~ 🐾");
-});
-</script>
-</body>
-</html>
+      }
+
+      const wplaceCanvas = document.querySelector('canvas');
+      if (!wplaceCanvas) {
+        alert("❌ WPlace canvas not found.");
+        return;
+      }
+
+      let i = 0;
+      function clickNext() {
+        if (i >= pixels.length) {
+          console.log("✅ Done clicking all pixels.");
+          return;
+        }
+
+        const { x, y } = pixels[i];
+        const rect = wplaceCanvas.getBoundingClientRect();
+        const clientX = rect.left + x;
+        const clientY = rect.top + y;
+
+        const clickEvent = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          clientX,
+          clientY
+        });
+
+        wplaceCanvas.dispatchEvent(clickEvent);
+        console.log(`🖱️ Clicked (${x}, ${y})`);
+        i++;
+        setTimeout(clickNext, 5000); // 5s cooldown
+      }
+
+      clickNext();
+    };
+
+    img.onerror = () => alert("❌ Failed to load image.");
+    img.src = url;
+  };
+})();
