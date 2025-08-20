@@ -1,23 +1,24 @@
 (function () {
-  // === CONFIG ===
-  const overlayImageURL = 'https://your-image-url-here.png'; // Replace with your pixel map
-  const defaultSize = 300;
-  const defaultOpacity = 0.5;
+  const overlayImageURL = prompt("Enter your overlay image URL:");
+  if (!overlayImageURL) return;
 
-  // === Create Overlay ===
+  const canvas = document.querySelector('canvas');
+  if (!canvas) return alert("❌ WPlace canvas not found.");
+
+  // Create overlay container
   const overlay = document.createElement('div');
-  overlay.id = 'pixel-overlay';
+  overlay.id = 'wplace-overlay';
   Object.assign(overlay.style, {
     position: 'absolute',
-    top: '100px',
-    left: '100px',
-    width: `${defaultSize}px`,
-    height: `${defaultSize}px`,
+    top: '0px',
+    left: '0px',
+    width: '300px',
+    height: '300px',
     backgroundImage: `url(${overlayImageURL})`,
     backgroundSize: 'contain',
     backgroundRepeat: 'no-repeat',
     imageRendering: 'pixelated',
-    opacity: defaultOpacity,
+    opacity: '0.5',
     zIndex: '9999',
     border: '1px dashed #aaa',
     resize: 'both',
@@ -26,9 +27,9 @@
     pointerEvents: 'auto',
   });
 
-  document.body.appendChild(overlay);
+  canvas.parentElement.appendChild(overlay);
 
-  // === Drag Logic ===
+  // Drag logic
   let isDragging = false;
   let offsetX = 0, offsetY = 0;
 
@@ -50,51 +51,38 @@
     isDragging = false;
   });
 
-  // === Control Panel ===
-  const panel = document.createElement('div');
-  panel.id = 'overlay-controls';
-  Object.assign(panel.style, {
-    position: 'fixed',
-    bottom: '20px',
-    left: '20px',
-    background: '#222',
-    color: '#eee',
-    padding: '10px',
-    borderRadius: '8px',
-    fontFamily: 'sans-serif',
-    fontSize: '14px',
-    zIndex: '10000',
-    boxShadow: '0 0 10px rgba(0,0,0,0.3)',
-  });
+  // Sync transform with canvas
+  const syncTransform = () => {
+    const canvasStyle = getComputedStyle(canvas);
+    const transform = canvasStyle.transform;
+    overlay.style.transform = transform;
+  };
 
-  panel.innerHTML = `
-    <label>Opacity: <input type="range" min="0" max="1" step="0.01" value="${defaultOpacity}" id="overlay-opacity"></label><br>
-    <button id="overlay-hide">Hide</button>
-    <button id="overlay-show" style="display:none;">Show</button>
-    <button id="overlay-remove">Remove</button>
+  // Observe canvas transform changes
+  const observer = new MutationObserver(syncTransform);
+  observer.observe(canvas, { attributes: true, attributeFilter: ['style'] });
+
+  // Initial sync
+  syncTransform();
+
+  // Optional: opacity slider
+  const slider = document.createElement('input');
+  slider.type = 'range';
+  slider.min = '0.1';
+  slider.max = '1';
+  slider.step = '0.01';
+  slider.value = '0.5';
+  slider.style = `
+    position:fixed;
+    top:10px;
+    left:10px;
+    z-index:10001;
   `;
+  document.body.appendChild(slider);
 
-  document.body.appendChild(panel);
-
-  // === Control Events ===
-  document.getElementById('overlay-opacity').addEventListener('input', (e) => {
-    overlay.style.opacity = e.target.value;
+  slider.addEventListener('input', () => {
+    overlay.style.opacity = slider.value;
   });
 
-  document.getElementById('overlay-hide').addEventListener('click', () => {
-    overlay.style.display = 'none';
-    document.getElementById('overlay-hide').style.display = 'none';
-    document.getElementById('overlay-show').style.display = 'inline';
-  });
-
-  document.getElementById('overlay-show').addEventListener('click', () => {
-    overlay.style.display = 'block';
-    document.getElementById('overlay-show').style.display = 'none';
-    document.getElementById('overlay-hide').style.display = 'inline';
-  });
-
-  document.getElementById('overlay-remove').addEventListener('click', () => {
-    overlay.remove();
-    panel.remove();
-  });
+  console.log("✅ Overlay is now pixelated, draggable, resizable, and synced to WPlace map.");
 })();
