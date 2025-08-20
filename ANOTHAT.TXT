@@ -1,50 +1,108 @@
 (() => {
-  const imageURL = 'https://your-image-url.png'; // 🔁 Replace with your pixel art
+  const imageURL = prompt("Enter your pixel image URL:");
+  const startX = parseInt(prompt("Start X coordinate:", "0"));
+  const startY = parseInt(prompt("Start Y coordinate:", "0"));
+
+  if (!imageURL || isNaN(startX) || isNaN(startY)) {
+    alert("❌ Invalid input.");
+    return;
+  }
+
+  // Create overlay image
   const overlay = document.createElement('img');
   overlay.src = imageURL;
-  overlay.id = 'wplace-overlay';
-  overlay.style = `
-    position: fixed;
-    top: 0; left: 0;
-    transform-origin: top left;
-    image-rendering: pixelated;
-    pointer-events: auto;
-    z-index: 9999;
-    cursor: grab;
-  `;
-  document.body.appendChild(overlay);
+  overlay.style.position = 'absolute';
+  overlay.style.imageRendering = 'pixelated';
+  overlay.style.pointerEvents = 'none';
+  overlay.style.zIndex = '9999';
+  overlay.style.transformOrigin = 'top left';
+  overlay.style.opacity = '0.6';
 
+  // Initial scale
   let scale = 1;
-  let pos = { x: 0, y: 0 };
-  let isDragging = false;
-  let dragStart = { x: 0, y: 0 };
 
-  // Zoom with wheel
-  overlay.addEventListener('wheel', e => {
-    e.preventDefault();
-    const zoomFactor = 0.1;
-    scale += (e.deltaY < 0 ? zoomFactor : -zoomFactor);
-    scale = Math.max(0.1, scale);
-    overlay.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${scale})`;
+  // Add to canvas container
+  const canvas = document.querySelector('canvas');
+  if (!canvas || !canvas.parentElement) {
+    alert("❌ WPlace canvas not found.");
+    return;
+  }
+  canvas.parentElement.appendChild(overlay);
+
+  // Create UI panel
+  const panel = document.createElement('div');
+  panel.style = `
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: #222;
+    color: #fff;
+    padding: 10px;
+    font-family: sans-serif;
+    font-size: 14px;
+    border-radius: 8px;
+    z-index: 10000;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+  `;
+  panel.innerHTML = `
+    <label>Scale: <input type="range" min="0.1" max="5" step="0.1" value="${scale}" id="scaleSlider"></label><br>
+    <label>Opacity: <input type="range" min="0.1" max="1" step="0.05" value="0.6" id="opacitySlider"></label><br>
+    <button id="hideOverlay">Hide</button>
+    <button id="showOverlay" style="display:none;">Show</button>
+    <button id="removeOverlay">Remove</button>
+  `;
+  document.body.appendChild(panel);
+
+  // Sync overlay to canvas transform
+  function updateOverlay() {
+    const style = getComputedStyle(canvas);
+    const matrix = style.transform.match(/matrix\`\(([^)]+)\\)`/);
+    if (!matrix) return;
+
+    const values = matrix[1].split(',').map(parseFloat);
+    const canvasScale = values[0];
+    const offsetX = values[4];
+    const offsetY = values[5];
+
+    const finalScale = scale * canvasScale;
+    overlay.style.transform = `
+      translate(${offsetX + startX * canvasScale}px, ${offsetY + startY * canvasScale}px)
+      scale(${finalScale})
+    `;
+  }
+
+  // Observe canvas transform changes
+  const observer = new MutationObserver(updateOverlay);
+  observer.observe(canvas, { attributes: true, attributeFilter: ['style'] });
+
+  // UI events
+  document.getElementById('scaleSlider').addEventListener('input', e => {
+    scale = parseFloat(e.target.value);
+    updateOverlay();
   });
 
-  // Drag with mouse
-  overlay.addEventListener('mousedown', e => {
-    isDragging = true;
-    dragStart.x = e.clientX - pos.x;
-    dragStart.y = e.clientY - pos.y;
-    overlay.style.cursor = 'grabbing';
+  document.getElementById('opacitySlider').addEventListener('input', e => {
+    overlay.style.opacity = e.target.value;
   });
 
-  window.addEventListener('mouseup', () => {
-    isDragging = false;
-    overlay.style.cursor = 'grab';
+  document.getElementById('hideOverlay').addEventListener('click', () => {
+    overlay.style.display = 'none';
+    document.getElementById('hideOverlay').style.display = 'none';
+    document.getElementById('showOverlay').style.display = 'inline';
   });
 
-  window.addEventListener('mousemove', e => {
-    if (!isDragging) return;
-    pos.x = e.clientX - dragStart.x;
-    pos.y = e.clientY - dragStart.y;
-    overlay.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${scale})`;
+  document.getElementById('showOverlay').addEventListener('click', () => {
+    overlay.style.display = 'block';
+    document.getElementById('showOverlay').style.display = 'none';
+    document.getElementById('hideOverlay').style.display = 'inline';
   });
+
+  document.getElementById('removeOverlay').addEventListener('click', () => {
+    overlay.remove();
+    panel.remove();
+    observer.disconnect();
+  });
+
+  // Initial draw
+  updateOverlay();
 })();
