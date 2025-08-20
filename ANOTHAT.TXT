@@ -1,88 +1,61 @@
-(function () {
-  const overlayImageURL = prompt("Enter your overlay image URL:");
-  if (!overlayImageURL) return;
+// ==UserScript==
+// @name         WPlace Pixel Overlay Lock
+// @version      1.0
+// @description  Locks overlay to pixel grid and cancels zoom scaling
+// @match        https://wplace.io/*
+// @grant        none
+// ==/UserScript==
 
-  const canvas = document.querySelector('canvas');
-  if (!canvas) return alert("❌ WPlace canvas not found.");
+(function () {
+  'use strict';
 
   // Create overlay container
-  const overlay = document.createElement('div');
-  overlay.id = 'wplace-overlay';
-  Object.assign(overlay.style, {
-    position: 'absolute',
-    top: '0px',
-    left: '0px',
-    width: '300px',
-    height: '300px',
-    backgroundImage: `url(${overlayImageURL})`,
-    backgroundSize: 'contain',
-    backgroundRepeat: 'no-repeat',
-    imageRendering: 'pixelated',
-    opacity: '0.5',
-    zIndex: '9999',
-    border: '1px dashed #aaa',
-    resize: 'both',
-    overflow: 'hidden',
-    cursor: 'move',
-    pointerEvents: 'auto',
-  });
+  const overlay = document.createElement('img');
+  overlay.src = 'https://your-image-url-here.png'; // Replace with your overlay image
+  overlay.style.position = 'absolute';
+  overlay.style.imageRendering = 'pixelated';
+  overlay.style.pointerEvents = 'none';
+  overlay.style.zIndex = '1000';
+  overlay.style.transformOrigin = 'top left';
+  document.body.appendChild(overlay);
 
-  canvas.parentElement.appendChild(overlay);
+  // Utility to parse matrix from canvas transform
+  function getCanvasTransform() {
+    const canvas = document.querySelector('canvas');
+    const style = window.getComputedStyle(canvas);
+    const matrix = style.transform.match(/matrix`\(([^)]+)\)`/);
+    if (!matrix) return { scale: 1, x: 0, y: 0 };
 
-  // Drag logic
-  let isDragging = false;
-  let offsetX = 0, offsetY = 0;
+    const values = matrix[1].split(',').map(parseFloat);
+    const scale = values[0]; // assuming uniform scale
+    const x = values[4];
+    const y = values[5];
+    return { scale, x, y };
+  }
 
-  overlay.addEventListener('mousedown', (e) => {
-    if (e.target !== overlay) return;
-    isDragging = true;
-    offsetX = e.clientX - overlay.offsetLeft;
-    offsetY = e.clientY - overlay.offsetTop;
-    e.preventDefault();
-  });
+  // Sync overlay to canvas transform
+  function updateOverlay() {
+    const { scale, x, y } = getCanvasTransform();
 
-  document.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-    overlay.style.left = `${e.clientX - offsetX}px`;
-    overlay.style.top = `${e.clientY - offsetY}px`;
-  });
+    // Invert scale to cancel zoom
+    const inverseScale = 1 / scale;
 
-  document.addEventListener('mouseup', () => {
-    isDragging = false;
-  });
+    overlay.style.transform = `
+      translate(${x}px, ${y}px)
+      scale(${inverseScale})
+    `;
 
-  // Sync transform with canvas
-  const syncTransform = () => {
-    const canvasStyle = getComputedStyle(canvas);
-    const transform = canvasStyle.transform;
-    overlay.style.transform = transform;
-  };
+    // Optional: adjust size to match canvas
+    const canvas = document.querySelector('canvas');
+    overlay.width = canvas.width;
+    overlay.height = canvas.height;
+  }
 
-  // Observe canvas transform changes
-  const observer = new MutationObserver(syncTransform);
-  observer.observe(canvas, { attributes: true, attributeFilter: ['style'] });
+  // Run every frame for smooth sync
+  function loop() {
+    updateOverlay();
+    requestAnimationFrame(loop);
+  }
 
-  // Initial sync
-  syncTransform();
-
-  // Optional: opacity slider
-  const slider = document.createElement('input');
-  slider.type = 'range';
-  slider.min = '0.1';
-  slider.max = '1';
-  slider.step = '0.01';
-  slider.value = '0.5';
-  slider.style = `
-    position:fixed;
-    top:10px;
-    left:10px;
-    z-index:10001;
-  `;
-  document.body.appendChild(slider);
-
-  slider.addEventListener('input', () => {
-    overlay.style.opacity = slider.value;
-  });
-
-  console.log("✅ Overlay is now pixelated, draggable, resizable, and synced to WPlace map.");
+  loop();
 })();
