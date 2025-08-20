@@ -1,61 +1,50 @@
-// ==UserScript==
-// @name         WPlace Pixel Overlay Lock
-// @version      1.0
-// @description  Locks overlay to pixel grid and cancels zoom scaling
-// @match        https://wplace.io/*
-// @grant        none
-// ==/UserScript==
-
-(function () {
-  'use strict';
-
-  // Create overlay container
+(() => {
+  const imageURL = 'https://your-image-url.png'; // 🔁 Replace with your pixel art
   const overlay = document.createElement('img');
-  overlay.src = 'https://your-image-url-here.png'; // Replace with your overlay image
-  overlay.style.position = 'absolute';
-  overlay.style.imageRendering = 'pixelated';
-  overlay.style.pointerEvents = 'none';
-  overlay.style.zIndex = '1000';
-  overlay.style.transformOrigin = 'top left';
+  overlay.src = imageURL;
+  overlay.id = 'wplace-overlay';
+  overlay.style = `
+    position: fixed;
+    top: 0; left: 0;
+    transform-origin: top left;
+    image-rendering: pixelated;
+    pointer-events: auto;
+    z-index: 9999;
+    cursor: grab;
+  `;
   document.body.appendChild(overlay);
 
-  // Utility to parse matrix from canvas transform
-  function getCanvasTransform() {
-    const canvas = document.querySelector('canvas');
-    const style = window.getComputedStyle(canvas);
-    const matrix = style.transform.match(/matrix`\(([^)]+)\)`/);
-    if (!matrix) return { scale: 1, x: 0, y: 0 };
+  let scale = 1;
+  let pos = { x: 0, y: 0 };
+  let isDragging = false;
+  let dragStart = { x: 0, y: 0 };
 
-    const values = matrix[1].split(',').map(parseFloat);
-    const scale = values[0]; // assuming uniform scale
-    const x = values[4];
-    const y = values[5];
-    return { scale, x, y };
-  }
+  // Zoom with wheel
+  overlay.addEventListener('wheel', e => {
+    e.preventDefault();
+    const zoomFactor = 0.1;
+    scale += (e.deltaY < 0 ? zoomFactor : -zoomFactor);
+    scale = Math.max(0.1, scale);
+    overlay.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${scale})`;
+  });
 
-  // Sync overlay to canvas transform
-  function updateOverlay() {
-    const { scale, x, y } = getCanvasTransform();
+  // Drag with mouse
+  overlay.addEventListener('mousedown', e => {
+    isDragging = true;
+    dragStart.x = e.clientX - pos.x;
+    dragStart.y = e.clientY - pos.y;
+    overlay.style.cursor = 'grabbing';
+  });
 
-    // Invert scale to cancel zoom
-    const inverseScale = 1 / scale;
+  window.addEventListener('mouseup', () => {
+    isDragging = false;
+    overlay.style.cursor = 'grab';
+  });
 
-    overlay.style.transform = `
-      translate(${x}px, ${y}px)
-      scale(${inverseScale})
-    `;
-
-    // Optional: adjust size to match canvas
-    const canvas = document.querySelector('canvas');
-    overlay.width = canvas.width;
-    overlay.height = canvas.height;
-  }
-
-  // Run every frame for smooth sync
-  function loop() {
-    updateOverlay();
-    requestAnimationFrame(loop);
-  }
-
-  loop();
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    pos.x = e.clientX - dragStart.x;
+    pos.y = e.clientY - dragStart.y;
+    overlay.style.transform = `translate(${pos.x}px, ${pos.y}px) scale(${scale})`;
+  });
 })();
